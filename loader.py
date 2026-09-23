@@ -6,38 +6,34 @@ from langchain_core.documents import Document
 from langchain_core.tools import tool
 from config import ACTUAL_FILE_PATH, EMBEDDING_MODEL_NAME, EMBEDDING_MODEL_CONTEXT, EMBEDDING_MODEL_CHUNK
 from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
-
+from langchain_huggingface import HuggingFaceEmbeddings
 
 @lru_cache(maxsize=1)
-def _get_embeddings():
-    return OpenAIEmbeddings(
+def get_embeddings():
+    return HuggingFaceEmbeddings(
         model=EMBEDDING_MODEL_NAME,
-        openai_api_base="http://localhost:1234/v1",
-        openai_api_key="lm-studio",
-        check_embedding_ctx_length=False,
     )
 
 
 @lru_cache(maxsize=1)
-def _get_store():
+def get_store():
     return Chroma(
         collection_name="NL2SQL",
-        embedding_function=_get_embeddings(),
-        persist_directory="./chroma_NL2SQL",
+        embedding_function=get_embeddings(),
+        persist_directory="./chroma_NL2RAG",
     )
 
 
 @lru_cache(maxsize=1)
-def _get_retriever():
-    return _get_store().as_retriever(
+def get_retriever():
+    return get_store().as_retriever(
         search_type="hybrid",
         search_kwargs={"k": 5},
     )
 
 
 @lru_cache(maxsize=1)
-def _get_text_splitter():
+def get_text_splitter():
     return TokenTextSplitter(
         encoding_name="cl100k_base",
         chunk_size=EMBEDDING_MODEL_CONTEXT,
@@ -63,14 +59,14 @@ def save_data(file_name: str, batch_size: int = 50):
     if not os.path.exists(full_path):
         raise FileNotFoundError(f"File not found: {full_path}")
     source = os.path.basename(full_path)
-    _get_store().delete(where={"source": source})
+    get_store().delete(where={"source": source})
     docs = read_data(full_path)
-    splits = _get_text_splitter().split_documents(docs)
-    _get_store().add_documents(documents=splits, batch_size=batch_size)
+    splits = get_text_splitter().split_documents(docs)
+    get_store().add_documents(documents=splits, batch_size=batch_size)
 
 
 def list_data() -> list[str]:
-    collection = _get_store()._collection
+    collection = get_store()._collection
     results = collection.get(include=["metadatas"])
     sources = set()
     for meta in results.get("metadatas", []) or []:
@@ -81,7 +77,7 @@ def list_data() -> list[str]:
 
 def delete_data(file_name: str) -> str:
     source = os.path.basename(file_name)
-    _get_store().delete(where={"source": source})
+    get_store().delete(where={"source": source})
     return f"Deleted documents with source: {source}"
 
 
@@ -95,7 +91,7 @@ async def query_data(query: str) -> str:
     Returns:
         str: The matching results from the database
     """
-    results = await _get_retriever().ainvoke(query)
+    results = await get_retriever().ainvoke(query)
     lines = []
     for doc in results:
         source = doc.metadata.get("source", "unknown")
