@@ -1,16 +1,21 @@
 
 from config import CHAT_MODEL_NAME
 from loader import query_data
-from langchain.chat_models import init_chat_model
 from langchain.agents import create_agent
+from langchain_huggingface import ChatHuggingFace
+from langchain_huggingface.llms import HuggingFacePipeline
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+
 tools = [query_data]
-model=init_chat_model(
-    model=CHAT_MODEL_NAME,
-    model_provider="openai",
-    base_url="http://localhost:1234/v1",
-    api_key="not-needed",
-    temperature=0.5,
-)
+
+model_id = CHAT_MODEL_NAME
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+model = AutoModelForCausalLM.from_pretrained(model_id)
+pipe = pipeline("text-generation", model=model, tokenizer=tokenizer)
+hf = HuggingFacePipeline(pipeline=pipe)
+
+model=ChatHuggingFace(llm=hf)
+
 agent = create_agent(
     model=model,
     tools=tools

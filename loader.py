@@ -31,7 +31,7 @@ def _get_store():
 @lru_cache(maxsize=1)
 def _get_retriever():
     return _get_store().as_retriever(
-        search_type="similarity",
+        search_type="hybrid",
         search_kwargs={"k": 5},
     )
 
