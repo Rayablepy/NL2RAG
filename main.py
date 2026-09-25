@@ -1,10 +1,11 @@
 
 from loader import query_data
 from langchain.agents import create_agent
+from config import CHAT_MODEL
 tools = [query_data]
 
 agent = create_agent(
-    model=model,
+    model=CHAT_MODEL,
     tools=tools
 )
 async def getresponse(user:str) -> str:
