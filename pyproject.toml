@@ -16,5 +16,5 @@ dependencies = [
     "streamlit>=1.59.2",
     "textract>=2.0.0",
     "torch>=2.14.0",
-    "transformers>=5.17.0",
+    "transformers[serving]>=5.17.0",
 ]
