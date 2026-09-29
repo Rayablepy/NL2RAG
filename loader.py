@@ -4,7 +4,7 @@ from functools import lru_cache
 from langchain_text_splitters import TokenTextSplitter
 from langchain_core.documents import Document
 from langchain_core.tools import tool
-from config import ACTUAL_FILE_PATH, EMBEDDING_MODEL_NAME, EMBEDDING_MODEL_CONTEXT, EMBEDDING_MODEL_CHUNK
+from config import ACTUAL_FILE_PATH, EMBEDDING_MODEL_NAME, EMBEDDING_MODEL_CONTEXT, EMBEDDING_MODEL_CHUNK, MODEL_PATH
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 
@@ -12,6 +12,8 @@ from langchain_huggingface import HuggingFaceEmbeddings
 def get_embeddings():
     return HuggingFaceEmbeddings(
         model=EMBEDDING_MODEL_NAME,
+        cache_folder=MODEL_PATH,
+        encode_kwargs={"normalize_embeddings":True}
     )
 
 

@@ -5,7 +5,7 @@ load_dotenv()
 
 CHAT_MODEL_NAME=os.getenv("CHAT_MODEL_NAME")
 BASE_URL=os.getenv("BASE_URL")
-MODEL_API_KEY=os.getenv("MODEL_API_KEY")
+MODEL_API_KEY='not-needed'
 MODEL_PATH="./NL2RAG_models/"
 ACTUAL_FILE_PATH="./user_data/"
 EMBEDDING_MODEL_NAME=os.getenv("EMBEDDING_MODEL_NAME")
@@ -16,4 +16,5 @@ CHAT_MODEL=ChatOpenAI(
     model=CHAT_MODEL_NAME,
     base_url=BASE_URL,
     api_key=MODEL_API_KEY,
+    temperature=0
 )
