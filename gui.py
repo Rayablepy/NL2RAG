@@ -1,53 +1,81 @@
-import asyncio
 import os
+import shutil
+
+import gradio as gr
+
 from config import ACTUAL_FILE_PATH
-import streamlit as st
-from loader import save_data, delete_data, list_data
+from loader import delete_data, list_data, save_data
 from main import getresponse
 
 DIR = ACTUAL_FILE_PATH
 os.makedirs(DIR, exist_ok=True)
 
-with st.sidebar:
-    st.header("Upload Data")
-    uploaded_files = st.file_uploader(
-        "Upload files to sample_data",
-        type=["pdf", "csv", "txt", "docx", "xlsx"],
-        accept_multiple_files=True,
+ALLOWED_TYPES = [".pdf", ".csv", ".txt", ".docx", ".xlsx"]
+
+
+def store_uploads(paths: list[str] | None) -> tuple[gr.update, str]:
+    if not paths:
+        return gr.Dropdown(choices=list_data()), "No files selected."
+    saved = []
+    for path in paths:
+        name = os.path.basename(path)
+        shutil.copyfile(path, os.path.join(DIR, name))
+        save_data(name)
+        saved.append(name)
+    return gr.Dropdown(choices=list_data()), f"Saved {len(saved)} file(s) to {DIR}"
+
+
+def remove_selected(names: list[str] | None) -> tuple[gr.Dropdown, str]:
+    if not names:
+        return gr.Dropdown(choices=list_data()), "No files selected."
+    for name in names:
+        delete_data(name)
+    return gr.Dropdown(choices=list_data()), f"Deleted {len(names)} file(s)"
+
+
+async def respond(message: str, history: list[dict] | None) -> tuple[str, list[dict]]:
+    history = history or []
+    if not message.strip():
+        return "", history
+    reply = await getresponse(message)
+    return "", [*history, {"role": "user", "content": message}, {"role": "assistant", "content": reply}]
+
+
+with gr.Blocks(title="NL2SQL") as demo:
+    with gr.Row():
+        with gr.Column(scale=1, min_width=280):
+            gr.Markdown("### Upload Data")
+            upload = gr.File(
+                file_count="multiple",
+                file_types=ALLOWED_TYPES,
+                type="filepath",
+                label="Upload files",
+            )
+            upload_status = gr.Textbox(label="Upload status", interactive=False)
+            gr.Markdown("### Saved Files")
+            saved_files = gr.Dropdown(choices=[], multiselect=True, label="Select files to delete")
+            delete_status = gr.Textbox(label="Delete status", interactive=False)
+            gr.Button("Delete Selected", variant="stop").click(
+                remove_selected, inputs=saved_files, outputs=[saved_files, delete_status]
+            )
+        with gr.Column(scale=4):
+            chatbot = gr.Chatbot(
+                label="Chat",
+                height="100%",
+                placeholder="Your input here...",
+                layout="bubble",
+            )
+            prompt = gr.Textbox(label="Your input here...", show_label=False)
+            gr.Button("Send").click(
+                respond, inputs=[prompt, chatbot], outputs=[prompt, chatbot]
+            )
+            prompt.submit(respond, inputs=[prompt, chatbot], outputs=[prompt, chatbot])
+
+    demo.load(lambda: gr.Dropdown(choices=list_data()), outputs=saved_files)
+    upload.change(
+        store_uploads, inputs=upload, outputs=[saved_files, upload_status]
     )
-    if uploaded_files:
-        for f in uploaded_files:
-            dest = os.path.join(DIR, f.name)
-            with open(dest, "wb") as out:
-                out.write(f.getbuffer())
-            save_data(f.name)
-        st.success(f"Saved {len(uploaded_files)} file(s) to {DIR}")
-        st.rerun()
 
-st.sidebar.divider()
-st.sidebar.header("Saved Files")
-files = list_data()
-if files:
-    selected = st.sidebar.multiselect("Select files to delete", files)
-    if st.sidebar.button("Delete Selected", type="primary"):
-        for path in selected:
-            delete_data(path)
-        st.sidebar.success(f"Deleted {len(selected)} file(s)")
-        st.rerun()
-else:
-    st.sidebar.write("No files saved yet.")
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-if prompt := st.chat_input("Your input here..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            response = asyncio.run(getresponse(prompt))
-        st.markdown(response)
-    st.session_state.messages.append({"role": "assistant", "content": response})
+if __name__ == "__main__":
+    demo.launch()

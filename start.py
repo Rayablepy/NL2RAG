@@ -11,7 +11,9 @@ from pathlib import Path
 import click
 from dotenv import load_dotenv
 
-load_dotenv()
+ROOT = Path(__file__).resolve().parent
+
+load_dotenv(ROOT / ".env")
 
 def healthy(url: str) -> bool:
     try:
@@ -91,7 +93,7 @@ def start(model: str, port: int, timeout: int, log_level: str) -> None:
                 resolve("transformers"), "serve", model,
                 "--port", str(port), "--log-level", log_level,
             ],
-            cwd=Path(__file__).resolve().parent,
+            cwd=ROOT,
             start_new_session=(os.name == "posix"),
         )
         signal.signal(signal.SIGTERM, shutdown)
@@ -113,12 +115,12 @@ def start(model: str, port: int, timeout: int, log_level: str) -> None:
             time.sleep(1)
             elapsed += 1
 
-        click.echo("Model ready. Launching Streamlit.")
-        streamlit = subprocess.Popen(
-            [resolve("streamlit"), "run", "gui.py"],
+        click.echo("Model ready. Launching Gradio.")
+        gradio_ui = subprocess.Popen(
+            [sys.executable, str(ROOT / "gui.py")],
             cwd=ROOT,
         )
-        sys.exit(streamlit.wait())
+        sys.exit(gradio_ui.wait())
     except KeyboardInterrupt:
         sys.exit(130)
     finally:
