@@ -4,9 +4,10 @@ from functools import lru_cache
 from langchain_text_splitters import TokenTextSplitter
 from langchain_core.documents import Document
 from langchain_core.tools import tool
-from config import ACTUAL_FILE_PATH, EMBEDDING_MODEL_NAME, EMBEDDING_MODEL_CONTEXT, EMBEDDING_MODEL_CHUNK, MODEL_PATH
+from config import ACTUAL_FILE_PATH, EMBEDDING_MODEL_NAME, EMBEDDING_MODEL_CONTEXT, EMBEDDING_MODEL_CHUNK, MODEL_PATH, RERANKER_MODEL_NAME
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.cross_encoders import HuggingFaceCrossEncoder
 
 @lru_cache(maxsize=1)
 def get_embeddings():
@@ -30,9 +31,11 @@ def get_store():
 def get_retriever():
     return get_store().as_retriever(
         search_type="similarity",
-        search_kwargs={"k": 5},
+        search_kwargs={"k": 20},
     )
 
+def get_cross_encoder_model():
+    return HuggingFaceCrossEncoder(model_name=RERANKER_MODEL_NAME)
 
 @lru_cache(maxsize=1)
 def get_text_splitter():
