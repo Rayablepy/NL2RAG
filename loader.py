@@ -8,6 +8,8 @@ from config import ACTUAL_FILE_PATH, EMBEDDING_MODEL_NAME, EMBEDDING_MODEL_CONTE
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.cross_encoders import HuggingFaceCrossEncoder
+from langchain_classic.retrievers.document_compressors import CrossEncoderReranker
+from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
 
 @lru_cache(maxsize=1)
 def get_embeddings():
@@ -17,7 +19,6 @@ def get_embeddings():
         encode_kwargs={"normalize_embeddings":True}
     )
 
-
 @lru_cache(maxsize=1)
 def get_store():
     return Chroma(
@@ -26,16 +27,29 @@ def get_store():
         persist_directory="./chroma_NL2RAG",
     )
 
-
 @lru_cache(maxsize=1)
 def get_retriever():
     return get_store().as_retriever(
         search_type="similarity",
         search_kwargs={"k": 20},
     )
-
+@lru_cache(maxsize=1)
 def get_cross_encoder_model():
     return HuggingFaceCrossEncoder(model_name=RERANKER_MODEL_NAME)
+
+@lru_cache(maxsize=1)
+def get_reranker():
+    return CrossEncoderReranker(
+        model=get_cross_encoder_model(),
+        top_n=3
+    )
+
+@lru_cache(maxsize=1)
+def get_full_retriever():
+    return ContextualCompressionRetriever(
+        base_compressor=get_reranker(),
+        base_retriever=get_retriever()
+    )
 
 @lru_cache(maxsize=1)
 def get_text_splitter():
