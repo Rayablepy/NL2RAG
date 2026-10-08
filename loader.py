@@ -4,9 +4,12 @@ from functools import lru_cache
 from langchain_text_splitters import TokenTextSplitter
 from langchain_core.documents import Document
 from langchain_core.tools import tool
-from config import ACTUAL_FILE_PATH, EMBEDDING_MODEL_NAME, EMBEDDING_MODEL_CONTEXT, EMBEDDING_MODEL_CHUNK, MODEL_PATH
+from config import ACTUAL_FILE_PATH, EMBEDDING_MODEL_NAME, EMBEDDING_MODEL_CONTEXT, EMBEDDING_MODEL_CHUNK, MODEL_PATH, RERANKER_MODEL_NAME
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.cross_encoders import HuggingFaceCrossEncoder
+from langchain_classic.retrievers.document_compressors import CrossEncoderReranker
+from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
 
 @lru_cache(maxsize=1)
 def get_embeddings():
@@ -16,7 +19,6 @@ def get_embeddings():
         encode_kwargs={"normalize_embeddings":True}
     )
 
-
 @lru_cache(maxsize=1)
 def get_store():
     return Chroma(
@@ -25,14 +27,33 @@ def get_store():
         persist_directory="./chroma_NL2RAG",
     )
 
-
 @lru_cache(maxsize=1)
 def get_retriever():
     return get_store().as_retriever(
         search_type="similarity",
-        search_kwargs={"k": 5},
+        search_kwargs={"k": 20},
     )
 
+@lru_cache(maxsize=1)
+def get_cross_encoder_model():
+    return HuggingFaceCrossEncoder(
+        model_name=RERANKER_MODEL_NAME,
+        model_kwargs={"cache_folder":MODEL_PATH}
+    )
+
+@lru_cache(maxsize=1)
+def get_reranker():
+    return CrossEncoderReranker(
+        model=get_cross_encoder_model(),
+        top_n=3
+    )
+
+@lru_cache(maxsize=1)
+def get_full_retriever():
+    return ContextualCompressionRetriever(
+        base_compressor=get_reranker(),
+        base_retriever=get_retriever()
+    )
 
 @lru_cache(maxsize=1)
 def get_text_splitter():
@@ -82,7 +103,6 @@ def delete_data(file_name: str) -> str:
     get_store().delete(where={"source": source})
     return f"Deleted documents with source: {source}"
 
-
 @tool
 async def query_data(query: str) -> str:
     """Query a local RAG database for information matching the query
@@ -93,7 +113,7 @@ async def query_data(query: str) -> str:
     Returns:
         str: The matching results from the database
     """
-    results = await get_retriever().ainvoke(query)
+    results = await get_full_retriever().ainvoke(query)
     lines = []
     for doc in results:
         source = doc.metadata.get("source", "unknown")
