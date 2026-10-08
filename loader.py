@@ -33,9 +33,13 @@ def get_retriever():
         search_type="similarity",
         search_kwargs={"k": 20},
     )
+
 @lru_cache(maxsize=1)
 def get_cross_encoder_model():
-    return HuggingFaceCrossEncoder(model_name=RERANKER_MODEL_NAME)
+    return HuggingFaceCrossEncoder(
+        model_name=RERANKER_MODEL_NAME,
+        model_kwargs={"cache_folder":MODEL_PATH}
+    )
 
 @lru_cache(maxsize=1)
 def get_reranker():
@@ -99,7 +103,6 @@ def delete_data(file_name: str) -> str:
     get_store().delete(where={"source": source})
     return f"Deleted documents with source: {source}"
 
-
 @tool
 async def query_data(query: str) -> str:
     """Query a local RAG database for information matching the query
@@ -110,7 +113,7 @@ async def query_data(query: str) -> str:
     Returns:
         str: The matching results from the database
     """
-    results = await get_retriever().ainvoke(query)
+    results = await get_full_retriever().ainvoke(query)
     lines = []
     for doc in results:
         source = doc.metadata.get("source", "unknown")
