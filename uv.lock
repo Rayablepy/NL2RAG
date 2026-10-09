@@ -1567,6 +1567,28 @@ wheels = [
 ]
 
 [[package]]
+name = "laya"
+version = "0.4.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "numpy" },
+    { name = "safetensors" },
+    { name = "torch" },
+    { name = "transformers" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/05/26/48881effdec3cd73ad4e919c38fbcee1ddb5efd732c5b65cbd8edda8e773/laya-0.4.1.tar.gz", hash = "sha256:3c56d346a2ca3835fd92d3f4bd7ec8cbe50ffe03dc5d53520dd2b72c9770dca0", size = 1073361, upload-time = "2026-10-08T17:29:22.678Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b8/f6/9e3f039d08319e153721210667548e2cac1679b56461c8b5e81acc93b4db/laya-0.4.1-py3-none-any.whl", hash = "sha256:5252730d8be604aecdc6c52adeb591e75d2b97ef3f52278cba9b37e403c784c7", size = 371890, upload-time = "2026-10-08T17:29:20.679Z" },
+]
+
+[package.optional-dependencies]
+langchain = [
+    { name = "langchain-core" },
+    { name = "langgraph" },
+]
+
+[[package]]
 name = "lxml"
 version = "6.1.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1905,6 +1927,7 @@ dependencies = [
     { name = "langchain-openai" },
     { name = "langchain-text-splitters" },
     { name = "langgraph" },
+    { name = "laya", extra = ["langchain"] },
     { name = "pypdf" },
     { name = "sentence-transformers" },
     { name = "textract" },
@@ -1926,6 +1949,7 @@ requires-dist = [
     { name = "langchain-openai", specifier = ">=1.3.5" },
     { name = "langchain-text-splitters", specifier = ">=1.1.2" },
     { name = "langgraph", specifier = ">=1.2.9" },
+    { name = "laya", extras = ["langchain"], specifier = ">=0.4.1" },
     { name = "pypdf", specifier = ">=6.14.2" },
     { name = "sentence-transformers", specifier = ">=6.1.0" },
     { name = "textract", specifier = ">=2.0.0" },
