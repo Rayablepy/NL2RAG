@@ -6,14 +6,16 @@ from config import CHAT_MODEL, MODEL_PATH
 from langgraph.graph import MessagesState
 import laya
 import asyncio
+import warnings
 tools = [query_data]
 
 agent = create_agent(
     model=CHAT_MODEL,
     tools=tools,
 )
-
-GRADING_MODEL=laya.load("convaiinnovations/laya")
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    GRADING_MODEL=laya.Agent("convaiinnovations/laya")
 
 #taken from langchain docs
 GRADE_PROMPT = (
@@ -45,8 +47,7 @@ async def grade_docs(state: MessagesState)->Literal["generate_answer","rewrite_q
     query = state["messages"][0].content
     context = state["messages"][-1].content
     res=GRADING_MODEL.predict(build_state(query,context),GRADE_SCHEMA)
-    p = res["noul"]
-    if p>0.55:
+    if res['answers']['relevant_document']['noul']>0.55:
         return "generate_answer"
     else:
         return "rewrite_query"
@@ -75,4 +76,4 @@ input = {
         ]
     )
 }
-asyncio.run(grade_docs(input))
+print(asyncio.run(grade_docs(input)))
