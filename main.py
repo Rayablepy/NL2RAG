@@ -5,6 +5,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from config import CHAT_MODEL, MODEL_PATH
 from langgraph.graph import MessagesState
 import laya
+import asyncio
 tools = [query_data]
 
 agent = create_agent(
@@ -22,6 +23,7 @@ GRADE_PROMPT = (
     "If the document contains keyword(s) or semantic meaning related to the user query, "
     "grade it as relevant. Otherwise, grade it as irrelevant."
 )
+
 GRADE_SCHEMA={
     "relevant_document":{
         "type":"noul",
@@ -34,11 +36,7 @@ def build_state(query,context):
     f"Here is the retrieved document: \n\n<context>\n{context}\n</context>\n\n"
     f"Here is the user query: {query} \n"
     )
-'''
-async def getresponse(user:str) -> str:
-    response = await agent.ainvoke({"messages": [{"role": "user", "content": user}]},thread)
-    return response["messages"][-1].content
-'''
+
 async def getresponse(state:MessagesState):
     res = await agent.ainvoke(state["messages"])
     return{"messages":[res]}
@@ -49,6 +47,32 @@ async def grade_docs(state: MessagesState)->Literal["generate_answer","rewrite_q
     res=GRADING_MODEL.predict(build_state(query,context),GRADE_SCHEMA)
     p = res["noul"]
     if p>0.55:
-        is_relevant=True
+        return "generate_answer"
     else:
-        is_relevant=False
+        return "rewrite_query"
+
+from langchain_core.messages import convert_to_messages
+
+input = {
+    "messages": convert_to_messages(
+        [
+            {
+                "role": "user",
+                "content": "What does Lilian Weng say about types of reward hacking?",
+            },
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "1",
+                        "name": "retrieve_blog_posts",
+                        "args": {"query": "types of reward hacking"},
+                    }
+                ],
+            },
+            {"role": "tool", "content": "meow", "tool_call_id": "1"},
+        ]
+    )
+}
+asyncio.run(grade_docs(input))
