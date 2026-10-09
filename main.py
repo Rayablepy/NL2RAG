@@ -3,6 +3,7 @@ from loader import query_data
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from config import CHAT_MODEL
+from langgraph.graph import MessagesState
 tools = [query_data]
 
 agent = create_agent(
@@ -12,6 +13,12 @@ agent = create_agent(
     checkpointer=InMemorySaver()
 )
 thread={"configurable":{"thread_id":1}}
+'''
 async def getresponse(user:str) -> str:
     response = await agent.ainvoke({"messages": [{"role": "user", "content": user}]},thread)
     return response["messages"][-1].content
+'''
+async def getresponse(state:MessagesState):
+    res = await agent.ainvoke(state["messages"])
+    return{"messages":[res]}
+
