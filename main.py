@@ -50,15 +50,15 @@ def build_state(query,context):
     )
 
 async def get_response(state:MessagesState):
-    res = await CHAT_MODEL.bind_tools([tools]).ainvoke(state["messages"])
+    res = await CHAT_MODEL.bind_tools(tools).ainvoke(state["messages"])
     return{"messages":[res]}
 
-async def grade_docs(state: MessagesState)->Literal["generate_answer","rewrite_query"]:
+async def grade_docs(state: MessagesState)->Literal["get_response","rewrite_query"]:
     query = state["messages"][0].content
     context = state["messages"][-1].content
     res=GRADING_MODEL.predict(build_state(query,context),GRADE_SCHEMA)
     if res['answers']['relevant_document']['noul'] > RELEVANCE_THRESHOLD:
-        return "generate_answer"
+        return "get_response"
     else:
         return "rewrite_query"
 
@@ -70,9 +70,8 @@ async def rewrite_query(state:MessagesState):
 
 graph=StateGraph(MessagesState)
 graph.add_node(get_response)
-graph.add_node("retrieve",ToolNode([tools]))
+graph.add_node("retrieve",ToolNode(tools))
 graph.add_node(rewrite_query)
-graph.add_node(get_response)
 
 graph.add_edge(START,"get_response")
 
@@ -95,7 +94,13 @@ graph.add_conditional_edges(
     grade_docs
 )
 
-graph.add_edge("get_response",END)
 graph.add_edge("rewrite_query","get_response")
 
 graph = graph.compile()
+'''
+import subprocess
+
+GRAPH_PNG_PATH = "graph.png"
+graph.get_graph().draw_mermaid_png(output_file_path=GRAPH_PNG_PATH)
+subprocess.run(["open", GRAPH_PNG_PATH], check=False)
+'''
