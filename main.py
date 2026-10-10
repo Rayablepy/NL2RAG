@@ -1,9 +1,9 @@
 from typing_extensions import Literal
 from loader import query_data
 from langchain.messages import HumanMessage
-from langgraph.checkpoint.memory import InMemorySaver
 from config import CHAT_MODEL, MODEL_PATH
-from langgraph.graph import MessagesState
+from langgraph.graph import MessagesState, END, START, StateGraph
+from langgraph.prebuilt import ToolNode
 import laya
 import warnings
 tools = [query_data]
@@ -50,7 +50,7 @@ def build_state(query,context):
     )
 
 async def get_response(state:MessagesState):
-    res = await CHAT_MODEL.ainvoke(state["messages"])
+    res = await CHAT_MODEL.bind_tools([tools]).ainvoke(state["messages"])
     return{"messages":[res]}
 
 async def grade_docs(state: MessagesState)->Literal["generate_answer","rewrite_query"]:
@@ -65,5 +65,37 @@ async def grade_docs(state: MessagesState)->Literal["generate_answer","rewrite_q
 async def rewrite_query(state:MessagesState):
     query=state["messages"][0].content
     prompt=build_rewrite_prompt(query)
-    res=CHAT_MODEL.ainvoke([{"role": "user", "content": prompt}])
+    res=await CHAT_MODEL.ainvoke([{"role": "user", "content": prompt}])
     return {"messages":[HumanMessage(content=res.content)]}
+
+graph=StateGraph(MessagesState)
+graph.add_node(get_response)
+graph.add_node("retrieve",ToolNode([tools]))
+graph.add_node(rewrite_query)
+graph.add_node(get_response)
+
+graph.add_edge(START,"get_response")
+
+def route_on_tool_calls(state: MessagesState):
+    last_message = state["messages"][-1]
+    if getattr(last_message, "tool_calls", None):
+        return "tools"
+    return END
+
+graph.add_conditional_edges(
+    "get_response",
+    route_on_tool_calls,
+    {
+        "tools":"retrieve",
+        END:END
+    }
+)
+graph.add_conditional_edges(
+    "retrieve",
+    grade_docs
+)
+
+graph.add_edge("get_response",END)
+graph.add_edge("rewrite_query","get_response")
+
+graph = graph.compile()
