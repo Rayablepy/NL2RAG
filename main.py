@@ -3,7 +3,7 @@ from sre_parse import parse
 
 from typing_extensions import Literal
 from loader import query_data
-from langchain.messages import HumanMessage
+from langchain.messages import HumanMessage, AIMessage
 from config import CHAT_MODEL, RELEVANCE_THRESHOLD,MAX_STEPS,REWRITE_BUFFER
 from langgraph.graph import MessagesState, END, START, StateGraph
 from langgraph.prebuilt import ToolNode
@@ -110,19 +110,28 @@ async def generate_answer(state:MessagesState):
     res = await CHAT_MODEL.ainvoke([{"role": "user", "content": build_generation_prompt(state["query"], context)}])
     return {"messages":[res]}
 
-graph=StateGraph(MessagesState)
+async def cannot_answer(state:AgentState):
+    return {
+            "messages": [
+                AIMessage(
+                    content="I couldn't find relevant information in the available "
+                    "documents to answer that."
+                )
+            ]
+        }
+def route_on_tool_calls(state:AgentState):
+    last_msg=state["messages"][-1]
+    if getattr(last_msg,"tool_calls",None):
+        return "retrieve"
+    else:
+        return END
+graph=StateGraph(AgentState)
 graph.add_node(query_or_respond)
 graph.add_node("retrieve",ToolNode(tools))
 graph.add_node(rewrite_query)
 graph.add_node(generate_answer)
 
 graph.add_edge(START,"query_or_respond")
-
-def route_on_tool_calls(state: MessagesState):
-    last_message = state["messages"][-1]
-    if getattr(last_message, "tool_calls", None):
-        return "tools"
-    return END
 
 graph.add_conditional_edges(
     "query_or_respond",
