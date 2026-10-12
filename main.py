@@ -1,6 +1,4 @@
 from functools import lru_cache
-from sre_parse import parse
-
 from typing_extensions import Literal
 from loader import query_data
 from langchain.messages import HumanMessage, AIMessage
@@ -9,6 +7,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import MessagesState, END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.managed import RemainingSteps
+from langgraph.errors import GraphRecursionError
 import laya
 import warnings
 tools = [query_data]
@@ -157,3 +156,14 @@ graph.add_edge("generate_answer",END)
 graph.add_edge("cannot_answer",END)
 
 graph = graph.compile(checkpointer=InMemorySaver())
+
+async def run_agent(message: str, thread: str)->str:
+    config={"configurable":{"thread_id":thread},"recursion_limit":MAX_STEPS}
+    try:
+        result = await graph.ainvoke(
+            {"messages": [{"role": "user", "content": message}]},
+            config,
+        )
+    except GraphRecursionError:
+        return "I wasn't able to converge on an answer."
+    return parse_msg(result["messages"][-1])
