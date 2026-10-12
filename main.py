@@ -5,6 +5,7 @@ from typing_extensions import Literal
 from loader import query_data
 from langchain.messages import HumanMessage, AIMessage
 from config import CHAT_MODEL, RELEVANCE_THRESHOLD,MAX_STEPS,REWRITE_BUFFER
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import MessagesState, END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.managed import RemainingSteps
@@ -126,10 +127,11 @@ def route_on_tool_calls(state:AgentState):
     else:
         return END
 graph=StateGraph(AgentState)
-graph.add_node(query_or_respond)
+graph.add_node("query_or_respond",query_or_respond)
 graph.add_node("retrieve",ToolNode(tools))
-graph.add_node(rewrite_query)
-graph.add_node(generate_answer)
+graph.add_node("rewrite_query",rewrite_query)
+graph.add_node("generate_answer",generate_answer)
+graph.add_node("cannot_answer",cannot_answer)
 
 graph.add_edge(START,"query_or_respond")
 
@@ -137,16 +139,21 @@ graph.add_conditional_edges(
     "query_or_respond",
     route_on_tool_calls,
     {
-        "tools":"retrieve",
+        "retrieve":"retrieve",
         END:END
     }
 )
 graph.add_conditional_edges(
     "retrieve",
-    grade_docs
+    grade_docs,
+    {
+        "generate_answer": "generate_answer",
+        "rewrite_query": "rewrite_query",
+        "cannot_answer": "cannot_answer",
+    }
 )
-
-graph.add_edge("generate_answer",END)
 graph.add_edge("rewrite_query","query_or_respond")
+graph.add_edge("generate_answer",END)
+graph.add_edge("cannot_answer",END)
 
-graph = graph.compile()
+graph = graph.compile(checkpointer=InMemorySaver())
