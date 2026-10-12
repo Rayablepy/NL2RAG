@@ -1,4 +1,5 @@
 from functools import lru_cache
+from sre_parse import parse
 
 from typing_extensions import Literal
 from loader import query_data
@@ -90,23 +91,23 @@ async def query_or_respond(state:MessagesState):
         update["query"]=(calls[0].get("args")or{}).get("query","")
     return update
 
-async def grade_docs(state: MessagesState)->Literal["generate_answer","rewrite_query"]:
-    query = state["messages"][0].content
-    context = state["messages"][-1].content
-    res=get_grader().predict(build_state(query,context),GRADE_SCHEMA)
+async def grade_docs(state: MessagesState)->Literal["generate_answer","rewrite_query","cannot_answer"]:
+    context = parse_msg(state["messages"][-1])
+    res=get_grader().predict(build_state(state["query"],context),GRADE_SCHEMA)
     if res['answers']['relevant_document']['noul'] > RELEVANCE_THRESHOLD:
         return "generate_answer"
+    if state["steps_remaining"]<=REWRITE_BUFFER:
+        return "cannot_answer"
     else:
         return "rewrite_query"
 
 async def rewrite_query(state:MessagesState):
-    query=state["messages"][0].content
-    prompt=build_rewrite_prompt(query)
-    res=await CHAT_MODEL.ainvoke([{"role": "user", "content": prompt}])
-    return {"messages":[HumanMessage(content=res.content)]}
+    improved_res=parse_msg(await CHAT_MODEL.ainvoke([{"role": "user", "content": build_rewrite_prompt(state["query"])}])).strip()
+    return {"messages":[HumanMessage(content=improved_res)],"query":improved_res}
 
 async def generate_answer(state:MessagesState):
-    res = await CHAT_MODEL.ainvoke(state["messages"])
+    context=parse_msg(state["messages"][-1])
+    res = await CHAT_MODEL.ainvoke([{"role": "user", "content": build_generation_prompt(state["query"], context)}])
     return {"messages":[res]}
 
 graph=StateGraph(MessagesState)
