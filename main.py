@@ -64,12 +64,31 @@ def build_generation_prompt(question,context):
         f"Question: {question} \n"
         f"<context>\n{context}\n</context>"
     )
+
+def parse_msg(msg)->str:
+    content=getattr(msg,"content",msg)
+    if isinstance(content,str):
+        return content
+    if isinstance(content,list):
+        parts=[]
+        for block in content:
+            if isinstance(block,dict) and block.get("type")=="text":
+                parts.append(block.get("text",""))
+            else:
+                parts.append(str(block))
+        return "\n".join(parts)
+    return str(content)
+
 class AgentState(MessagesState):
     steps_remaining: RemainingSteps
 
 async def query_or_respond(state:MessagesState):
     res = await CHAT_MODEL.bind_tools(tools).ainvoke(state["messages"])
-    return{"messages":[res]}
+    update={"messages":[res]}
+    calls = getattr(res,"tool_calls",None)
+    if calls:
+        update["query"]=(calls[0].get("args")or{}).get("query","")
+    return update
 
 async def grade_docs(state: MessagesState)->Literal["generate_answer","rewrite_query"]:
     query = state["messages"][0].content
@@ -87,9 +106,7 @@ async def rewrite_query(state:MessagesState):
     return {"messages":[HumanMessage(content=res.content)]}
 
 async def generate_answer(state:MessagesState):
-    question = state["messages"][0].content
-    context = state["messages"][-1].content
-    res = await CHAT_MODEL.ainvoke({"role":"user","content":build_generation_prompt(question=question,context=context)})
+    res = await CHAT_MODEL.ainvoke(state["messages"])
     return {"messages":[res]}
 
 graph=StateGraph(MessagesState)
