@@ -1,16 +1,15 @@
+from functools import lru_cache
+
 from typing_extensions import Literal
 from loader import query_data
 from langchain.messages import HumanMessage
-from config import CHAT_MODEL, MODEL_PATH
+from config import CHAT_MODEL, RELEVANCE_THRESHOLD,MAX_STEPS,REWRITE_BUFFER
 from langgraph.graph import MessagesState, END, START, StateGraph
 from langgraph.prebuilt import ToolNode
+from langgraph.managed import RemainingSteps
 import laya
 import warnings
 tools = [query_data]
-
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    GRADING_MODEL=laya.Agent("convaiinnovations/laya")
 
 GRADE_PROMPT = (
     "The retrieved document is relevant to the user query. \n"
@@ -31,7 +30,12 @@ GRADE_SCHEMA={
     }
 }
 
-RELEVANCE_THRESHOLD = 0.55
+@lru_cache(maxsize=1)
+def get_grader():
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return laya.Agent("convaiinnovations/laya")
+
 
 def build_rewrite_prompt(query):
     return (
@@ -60,6 +64,8 @@ def build_generation_prompt(question,context):
         f"Question: {question} \n"
         f"<context>\n{context}\n</context>"
     )
+class AgentState(MessagesState):
+    steps_remaining: RemainingSteps
 
 async def query_or_respond(state:MessagesState):
     res = await CHAT_MODEL.bind_tools(tools).ainvoke(state["messages"])
@@ -68,7 +74,7 @@ async def query_or_respond(state:MessagesState):
 async def grade_docs(state: MessagesState)->Literal["generate_answer","rewrite_query"]:
     query = state["messages"][0].content
     context = state["messages"][-1].content
-    res=GRADING_MODEL.predict(build_state(query,context),GRADE_SCHEMA)
+    res=get_grader().predict(build_state(query,context),GRADE_SCHEMA)
     if res['answers']['relevant_document']['noul'] > RELEVANCE_THRESHOLD:
         return "generate_answer"
     else:
@@ -81,9 +87,9 @@ async def rewrite_query(state:MessagesState):
     return {"messages":[HumanMessage(content=res.content)]}
 
 async def generate_answer(state:MessagesState):
-    question = state["messages"].content
+    question = state["messages"][0].content
     context = state["messages"][-1].content
-    res = CHAT_MODEL.ainvoke({"role":"user","content":build_generation_prompt(question=question,context=context)})
+    res = await CHAT_MODEL.ainvoke({"role":"user","content":build_generation_prompt(question=question,context=context)})
     return {"messages":[res]}
 
 graph=StateGraph(MessagesState)
