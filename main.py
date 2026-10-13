@@ -82,8 +82,8 @@ def parse_msg(msg)->str:
 
 class AgentState(MessagesState):
     steps_remaining: RemainingSteps
-
-async def query_or_respond(state:MessagesState):
+    query: str
+async def query_or_respond(state:AgentState):
     res = await CHAT_MODEL.bind_tools(tools).ainvoke(state["messages"])
     update={"messages":[res]}
     calls = getattr(res,"tool_calls",None)
@@ -91,7 +91,7 @@ async def query_or_respond(state:MessagesState):
         update["query"]=(calls[0].get("args")or{}).get("query","")
     return update
 
-async def grade_docs(state: MessagesState)->Literal["generate_answer","rewrite_query","cannot_answer"]:
+async def grade_docs(state: AgentState)->Literal["generate_answer","rewrite_query","cannot_answer"]:
     context = parse_msg(state["messages"][-1])
     res=get_grader().predict(build_state(state["query"],context),GRADE_SCHEMA)
     if res['answers']['relevant_document']['noul'] > RELEVANCE_THRESHOLD:
@@ -101,11 +101,11 @@ async def grade_docs(state: MessagesState)->Literal["generate_answer","rewrite_q
     else:
         return "rewrite_query"
 
-async def rewrite_query(state:MessagesState):
+async def rewrite_query(state:AgentState):
     improved_res=parse_msg(await CHAT_MODEL.ainvoke([{"role": "user", "content": build_rewrite_prompt(state["query"])}])).strip()
     return {"messages":[HumanMessage(content=improved_res)],"query":improved_res}
 
-async def generate_answer(state:MessagesState):
+async def generate_answer(state:AgentState):
     context=parse_msg(state["messages"][-1])
     res = await CHAT_MODEL.ainvoke([{"role": "user", "content": build_generation_prompt(state["query"], context)}])
     return {"messages":[res]}
@@ -161,7 +161,7 @@ async def run_agent(message: str, thread: str)->str:
     config={"configurable":{"thread_id":thread},"recursion_limit":MAX_STEPS}
     try:
         result = await graph.ainvoke(
-            {"messages": [{"role": "user", "content": message}]},
+            {"messages": [{"role": "user", "content": message}],"query":message},
             config,
         )
     except GraphRecursionError:
