@@ -5,7 +5,7 @@ import gradio as gr
 
 from config import ACTUAL_FILE_PATH
 from loader import delete_data, list_data, save_data
-from main import getresponse
+from main import run_agent
 
 DIR = ACTUAL_FILE_PATH
 os.makedirs(DIR, exist_ok=True)
@@ -37,7 +37,8 @@ async def respond(message: str, history: list[dict] | None) -> tuple[str, list[d
     history = history or []
     if not message.strip():
         return "", history
-    reply = await getresponse(message)
+    thread="thread-1"
+    reply = await run_agent(message,thread)
     return "", [*history, {"role": "user", "content": message}, {"role": "assistant", "content": reply}]
 
 
