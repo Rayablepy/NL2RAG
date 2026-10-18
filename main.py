@@ -34,7 +34,7 @@ GRADE_SCHEMA={
 def get_grader():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return laya.Agent("convaiinnovations/laya")
+        return laya.Agent("convaiinnovations/laya-multilingual")
 
 
 def build_rewrite_prompt(query):
