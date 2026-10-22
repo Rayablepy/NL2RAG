@@ -22,7 +22,7 @@ def get_embeddings():
 @lru_cache(maxsize=1)
 def get_store():
     return Chroma(
-        collection_name="NL2SQL",
+        collection_name="NL2RAG",
         embedding_function=get_embeddings(),
         persist_directory="./chroma_NL2RAG",
     )

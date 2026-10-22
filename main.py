@@ -1,3 +1,5 @@
+import math
+
 from functools import lru_cache
 from typing_extensions import Literal
 from loader import query_data
@@ -13,8 +15,7 @@ tools = [query_data]
 
 @lru_cache(maxsize=1)
 def get_grader():
-    return CrossEncoder("cross-encoder/ettin-reranker-17m-v1",
-        model_kwargs={"dtype":"bfloat16", "attn_implementation": "flash_attention_2"})
+    return CrossEncoder("cross-encoder/ettin-reranker-17m-v1")
 
 def build_rewrite_prompt(query):
     return (
@@ -76,8 +77,8 @@ async def query_or_respond(state:AgentState):
 
 async def grade_docs(state: AgentState)->Literal["generate_answer","rewrite_query","cannot_answer"]:
     context = parse_msg(state["messages"][-1])
-    res=get_grader().predict(state["query"],context)
-    if res['answers']['relevant_document']['noul'] > RELEVANCE_THRESHOLD:
+    res=get_grader().predict([(state["query"],context)])[0]
+    if 1 / (1 + math.exp(-(float(res) - 8.0) / 0.75)) > RELEVANCE_THRESHOLD: #platt scaling to normalize logits
         return "generate_answer"
     if state["steps_remaining"]<=REWRITE_BUFFER:
         return "cannot_answer"
@@ -150,3 +151,15 @@ async def run_agent(message: str, thread: str)->str:
     except GraphRecursionError:
         return "I wasn't able to converge on an answer."
     return parse_msg(result["messages"][-1])
+
+async def main():
+    user=None
+    thread = "1"
+    while user !="q":
+        user = input("Message: ").lower()
+        res = await run_agent(user,thread)
+        print(res)
+
+if __name__=="__main__":
+    import asyncio
+    asyncio.run(main())
