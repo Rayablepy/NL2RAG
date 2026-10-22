@@ -8,8 +8,7 @@ from langgraph.graph import MessagesState, END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.managed import RemainingSteps
 from langgraph.errors import GraphRecursionError
-import laya
-import warnings
+from sentence_transformers import CrossEncoder
 tools = [query_data]
 GRADE_PROMPT = (
     "The retrieved document is relevant to the user query. \n"
@@ -32,10 +31,8 @@ GRADE_SCHEMA={
 
 @lru_cache(maxsize=1)
 def get_grader():
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        return laya.Agent("convaiinnovations/laya-multilingual")
-
+    return CrossEncoder("cross-encoder/ettin-reranker-17m-v1",
+        model_kwargs={"dtype":"bfloat16", "attn_implementation": "flash_attention_2"})
 
 def build_rewrite_prompt(query):
     return (
